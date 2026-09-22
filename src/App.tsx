@@ -48,6 +48,26 @@ interface Badge {
   unlocked: boolean;
 }
 
+// Helper function to handle fetch with retries on transient errors and 503 status
+const fetchWithRetry = async (url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> => {
+  try {
+    const response = await fetch(url, options);
+    if (response.status === 503 && retries > 0) {
+      console.warn(`Encountered 503. Retrying in ${delay}ms... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+    }
+    return response;
+  } catch (error) {
+    if (retries > 0) {
+      console.warn(`Transient fetch error. Retrying in ${delay}ms... (${retries} retries left)`, error);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+    }
+    throw error;
+  }
+};
+
 export default function App() {
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'home' | 'practice' | 'mock' | 'solver' | 'tips' | 'settings'>('home');
@@ -240,7 +260,7 @@ export default function App() {
     const seed = Math.floor(Math.random() * 100000);
 
     try {
-      const response = await fetch('/api/gemini/generate-question', {
+      const response = await fetchWithRetry('/api/gemini/generate-question', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -249,7 +269,8 @@ export default function App() {
         body: JSON.stringify({
           categoryId: category.id,
           difficulty: practiceDifficulty,
-          seed
+          seed,
+          model: 'gemini-1.5-flash'
         })
       });
 
@@ -443,13 +464,16 @@ export default function App() {
 
     try {
       const cleanKey = (localStorage.getItem('asmo_gemini_api_key') || '').replace(/["'\s\r\n]/g, '').trim();
-      const response = await fetch('/api/gemini/solve-custom', {
+      const response = await fetchWithRetry('/api/gemini/solve-custom', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Gemini-API-Key': cleanKey
         },
-        body: JSON.stringify({ customQuestion: customSolverInput })
+        body: JSON.stringify({ 
+          customQuestion: customSolverInput,
+          model: 'gemini-1.5-flash'
+        })
       });
 
       let data: any = null;
@@ -2036,7 +2060,7 @@ Hệ thống đang tải lại các mô hình AI thông minh (mô hình 3.5 và 
                   Để trải nghiệm toàn vẹn các tính năng cao cấp không giới hạn như:
                 </p>
                 <ul className="list-disc pl-5 space-y-1.5 text-slate-700">
-                  <li>Tự động ra câu hỏi ngẫu nhiên hóa liên tục từ Gemini 3.8 Flash.</li>
+                  <li>Tự động ra câu hỏi ngẫu nhiên hóa liên tục từ Gemini 1.5 Flash.</li>
                   <li>Phân tích chuyên sâu lý luận sai lầm của từng học viên.</li>
                   <li>Trò chuyện trực tiếp đa góc nhìn cùng <strong className="text-indigo-600">Cố vấn học tập Giáo sư AI</strong>.</li>
                 </ul>

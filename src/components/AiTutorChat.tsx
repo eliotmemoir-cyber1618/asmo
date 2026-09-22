@@ -21,6 +21,26 @@ interface AiTutorChatProps {
   onClose?: () => void;
 }
 
+// Helper function to handle fetch with retries on transient errors and 503 status
+const fetchWithRetry = async (url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> => {
+  try {
+    const response = await fetch(url, options);
+    if (response.status === 503 && retries > 0) {
+      console.warn(`Encountered 503. Retrying in ${delay}ms... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+    }
+    return response;
+  } catch (error) {
+    if (retries > 0) {
+      console.warn(`Transient fetch error. Retrying in ${delay}ms... (${retries} retries left)`, error);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+    }
+    throw error;
+  }
+};
+
 export const AiTutorChat: React.FC<AiTutorChatProps> = ({
   questionText,
   choices,
@@ -196,7 +216,7 @@ Hướng dẫn giải thích chi tiết có sẵn: "${explanation}"`;
         text: msg.text
       }));
 
-      const response = await fetch('/api/gemini/chat-tutor', {
+      const response = await fetchWithRetry('/api/gemini/chat-tutor', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -209,7 +229,8 @@ Hướng dẫn giải thích chi tiết có sẵn: "${explanation}"`;
           questionText,
           correctAnswer,
           explanation,
-          categoryName
+          categoryName,
+          model: 'gemini-1.5-flash'
         })
       });
 

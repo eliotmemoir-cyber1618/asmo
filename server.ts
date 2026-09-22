@@ -76,14 +76,18 @@ async function generateWithModelFallback(
   params: {
     contents: any;
     config?: any;
+    customModel?: string;
   }
 ) {
-  const modelsToTry = [
+  const baseModels = [
     'gemini-3.5-flash',
     'gemini-2.5-flash',
     'gemini-1.5-flash',
     'gemini-3.1-flash-lite'
   ];
+  const modelsToTry = params.customModel 
+    ? Array.from(new Set([params.customModel, ...baseModels]))
+    : baseModels;
 
   let lastError: any = null;
   for (const modelName of modelsToTry) {
@@ -111,14 +115,18 @@ async function chatWithModelFallback(
     history: any[];
     message: string;
     systemInstruction: string;
+    customModel?: string;
   }
 ) {
-  const modelsToTry = [
+  const baseModels = [
     'gemini-3.5-flash',
     'gemini-2.5-flash',
     'gemini-1.5-flash',
     'gemini-3.1-flash-lite'
   ];
+  const modelsToTry = params.customModel 
+    ? Array.from(new Set([params.customModel, ...baseModels]))
+    : baseModels;
 
   let lastError: any = null;
   for (const modelName of modelsToTry) {
@@ -164,7 +172,7 @@ app.get('/api/categories', (req, res) => {
 
 // 3. Generate individual dynamic question (AI-boosted or Local fallback)
 app.post('/api/gemini/generate-question', async (req, res) => {
-  const { categoryId, difficulty, seed } = req.body;
+  const { categoryId, difficulty, seed, model } = req.body;
   const targetSeed = seed || Math.floor(Math.random() * 100000);
   const matchedCategory = CATEGORIES.find(c => c.id === categoryId);
 
@@ -217,7 +225,8 @@ Yêu cầu định dạng đầu ra là JSON có các trường:
       config: {
         responseMimeType: 'application/json',
         systemInstruction: 'Bạn là trợ lý giảng dạy toán học hàng đầu Việt Nam, chuyên biên soạn đề thi Toán Olympic ASMO Lớp 8.'
-      }
+      },
+      customModel: model
     });
 
     const text = response.text;
@@ -266,7 +275,7 @@ function qDifficultyMap(diff: string) {
 
 // 4. Smart AI Explanation (When user requests deep clarification about a specific problem)
 app.post('/api/gemini/explain-question', async (req, res) => {
-  const { questionText, choices, correctAnswer, explanation, userAnswer, categoryName } = req.body;
+  const { questionText, choices, correctAnswer, explanation, userAnswer, categoryName, model } = req.body;
   const reqAi = getAiClient(req);
 
   if (!reqAi) {
@@ -312,7 +321,8 @@ Hãy viết một phản hồi giảng giải nâng cao bằng Tiếng Việt g�
       contents: prompt,
       config: {
         systemInstruction: 'Bạn là chuyên gia đào tạo học sinh xuất sắc ôn thi Olympic Toán Quốc tế ASMO.'
-      }
+      },
+      customModel: model
     });
 
     return res.json({ explanation: cleanResponseText(response.text) });
@@ -448,7 +458,7 @@ ${e}
 
 // 5. Interactive Chat with the AI Tutor about a specific question
 app.post('/api/gemini/chat-tutor', async (req, res) => {
-  const { history, message, contextQuestion, questionText, correctAnswer, explanation, categoryName } = req.body;
+  const { history, message, contextQuestion, questionText, correctAnswer, explanation, categoryName, model } = req.body;
   const reqAi = getAiClient(req);
 
   if (!reqAi) {
@@ -473,7 +483,8 @@ Hãy khích lệ học sinh tự suy nghĩ thêm thay vì chỉ đưa ra đáp �
     const response = await chatWithModelFallback(reqAi, {
       history: formattedHistory,
       message: message,
-      systemInstruction: systemInstruction
+      systemInstruction: systemInstruction,
+      customModel: model
     });
 
     return res.json({ reply: cleanResponseText(response.text) });
@@ -487,7 +498,7 @@ Hãy khích lệ học sinh tự suy nghĩ thêm thay vì chỉ đưa ra đáp �
 
 // 6. Custom AI Solver / OCR Proxy
 app.post('/api/gemini/solve-custom', async (req, res) => {
-  const { customQuestion } = req.body;
+  const { customQuestion, model } = req.body;
   const reqAi = getAiClient(req);
 
   if (!reqAi) {
@@ -514,7 +525,8 @@ Hãy đóng vai là thầy giáo dạy Toán ôn thi ASMO:
       contents: prompt,
       config: {
         systemInstruction: 'Bạn là chuyên gia giải toán Olympic và cố vấn học tập Toán lớp 8.'
-      }
+      },
+      customModel: model
     });
 
     return res.json({ solution: cleanResponseText(response.text) });
