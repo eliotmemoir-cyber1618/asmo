@@ -29,7 +29,8 @@ import {
   AlertTriangle,
   Lightbulb,
   Edit3,
-  ListTodo
+  ListTodo,
+  Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MathText } from './components/MathText.tsx';
@@ -49,7 +50,12 @@ interface Badge {
 
 export default function App() {
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<'home' | 'practice' | 'mock' | 'solver' | 'tips'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'practice' | 'mock' | 'solver' | 'tips' | 'settings'>('home');
+
+  // Local state for user entered Gemini API Key
+  const [geminiApiKey, setGeminiApiKey] = useState(() => {
+    return localStorage.getItem('asmo_gemini_api_key') || '';
+  });
 
   // Local state for statistics & progress (synchronized with localStorage)
   const [stats, setStats] = useState({
@@ -236,7 +242,10 @@ export default function App() {
     try {
       const response = await fetch('/api/gemini/generate-question', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Gemini-API-Key': localStorage.getItem('asmo_gemini_api_key') || ''
+        },
         body: JSON.stringify({
           categoryId: category.id,
           difficulty: practiceDifficulty,
@@ -430,7 +439,10 @@ export default function App() {
     try {
       const response = await fetch('/api/gemini/solve-custom', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Gemini-API-Key': localStorage.getItem('asmo_gemini_api_key') || ''
+        },
         body: JSON.stringify({ customQuestion: customSolverInput })
       });
 
@@ -439,18 +451,22 @@ export default function App() {
         setCustomSolverResult(data.solution);
         setCustomSolverChatContext(customSolverInput);
       } else {
+        const errorDetail = data && data.error ? data.error : 'Hệ thống hiện đang ở chế độ offline hoặc máy chủ đang quá tải.';
         setCustomSolverResult(`### Không thể kết nối với trí tuệ nhân tạo Gemini
         
-Hệ thống hiện đang ở chế độ offline hoặc máy chủ đang quá tải. Hãy đảm bảo bạn đã điền đúng **GEMINI_API_KEY** trong cấu hình của dự án. 
+**Chi tiết lỗi từ API / Hệ thống:**
+\`${errorDetail}\`
+
+Hãy kiểm tra lại xem API Key của bạn đã chính xác chưa (trong mục Cài đặt AI), hoặc thử lại sau ít phút nếu máy chủ đang bị giới hạn lượt dùng.
 
 **Gợi ý phương pháp giải:**
 - Phân tích đa thức bằng hằng đẳng thức hoặc tách nhân tử.
 - Đặt ẩn phụ để đơn giản hóa biểu thức.
 - Vẽ sơ đồ đoạn thẳng nếu là toán chuyển động hay tổng-tỉ.`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setCustomSolverResult('Đã xảy ra lỗi khi truyền tín hiệu tới AI. Vui lòng kiểm tra lại kết nối internet.');
+      setCustomSolverResult(`Đã xảy ra lỗi khi truyền tín hiệu tới AI. Vui lòng kiểm tra lại kết nối internet. Chi tiết lỗi: ${e.message || String(e)}`);
     } finally {
       setCustomSolverLoading(false);
     }
@@ -588,6 +604,15 @@ Hệ thống hiện đang ở chế độ offline hoặc máy chủ đang quá t
               >
                 Chiến thuật & Bí kíp
               </button>
+              <button
+                onClick={() => handleTabChange('settings')}
+                className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                  activeTab === 'settings' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+                id="nav_settings"
+              >
+                <Settings className="w-4 h-4" /> Cài đặt AI
+              </button>
             </nav>
 
             {/* Streak Indicator */}
@@ -602,38 +627,46 @@ Hệ thống hiện đang ở chế độ offline hoặc máy chủ đang quá t
       </header>
 
       {/* MOBILE NAV BAR (sticky bottom for nice thumb navigation) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 flex justify-around z-40 shadow-lg" id="mobile_nav_bottom">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 flex justify-around z-40 shadow-lg" id="mobile_nav_bottom">
         <button
           onClick={() => handleTabChange('home')}
-          className={`flex flex-col items-center p-2 rounded-xl cursor-pointer ${activeTab === 'home' ? 'text-blue-600' : 'text-slate-500'}`}
+          className={`flex flex-col items-center p-1 rounded-xl cursor-pointer ${activeTab === 'home' ? 'text-blue-600' : 'text-slate-500'}`}
           id="m_nav_home"
         >
           <BrainCircuit className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">Trang chủ</span>
+          <span className="text-[9px] font-bold mt-1">Trang chủ</span>
         </button>
         <button
           onClick={() => handleTabChange('practice')}
-          className={`flex flex-col items-center p-2 rounded-xl cursor-pointer ${activeTab === 'practice' ? 'text-blue-600' : 'text-slate-500'}`}
+          className={`flex flex-col items-center p-1 rounded-xl cursor-pointer ${activeTab === 'practice' ? 'text-blue-600' : 'text-slate-500'}`}
           id="m_nav_practice"
         >
           <BookOpen className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">Ôn tập</span>
+          <span className="text-[9px] font-bold mt-1">Ôn tập</span>
         </button>
         <button
           onClick={() => handleTabChange('mock')}
-          className={`flex flex-col items-center p-2 rounded-xl cursor-pointer ${activeTab === 'mock' ? 'text-blue-600' : 'text-slate-500'}`}
+          className={`flex flex-col items-center p-1 rounded-xl cursor-pointer ${activeTab === 'mock' ? 'text-blue-600' : 'text-slate-500'}`}
           id="m_nav_mock"
         >
           <Clock className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">Thi thử</span>
+          <span className="text-[9px] font-bold mt-1">Thi thử</span>
         </button>
         <button
           onClick={() => handleTabChange('solver')}
-          className={`flex flex-col items-center p-2 rounded-xl cursor-pointer ${activeTab === 'solver' ? 'text-blue-600' : 'text-slate-500'}`}
+          className={`flex flex-col items-center p-1 rounded-xl cursor-pointer ${activeTab === 'solver' ? 'text-blue-600' : 'text-slate-500'}`}
           id="m_nav_solver"
         >
           <Sparkles className="w-5 h-5" />
-          <span className="text-[10px] font-bold mt-1">Giải toán AI</span>
+          <span className="text-[9px] font-bold mt-1">Giải toán</span>
+        </button>
+        <button
+          onClick={() => handleTabChange('settings')}
+          className={`flex flex-col items-center p-1 rounded-xl cursor-pointer ${activeTab === 'settings' ? 'text-blue-600' : 'text-slate-500'}`}
+          id="m_nav_settings"
+        >
+          <Settings className="w-5 h-5" />
+          <span className="text-[9px] font-bold mt-1">Cài đặt</span>
         </button>
       </div>
 
@@ -1907,36 +1940,128 @@ Hệ thống hiện đang ở chế độ offline hoặc máy chủ đang quá t
               <div className="space-y-4 text-xs text-slate-700 leading-relaxed" id="formulas_roadmap_container">
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-bold text-indigo-600">1. Số Học & Đại Số</h4>
-                  <p className="mt-1 font-medium text-slate-600">
-                    {"- Tổng dãy số cách đều: $S_n = \\frac{n \\cdot (u_1 + u_n)}{2}$ trong đó số lượng số hạng $n = \\frac{u_n - u_1}{d} + 1$."}
-                    <br />
-                    {"- Biến đổi Telescoping: $\\frac{1}{n(n+1)} = \\frac{1}{n} - \\frac{1}{n+1}$ và $\\frac{k}{n(n+k)} = \\frac{1}{n} - \\frac{1}{n+k}$."}
-                    <br />
-                    {"- Trị tuyệt đối: $|A| = B \\Rightarrow A = B$ hoặc $A = -B$ (điều kiện $B \\ge 0$)"}
-                  </p>
+                  <div className="mt-1 font-medium text-slate-600 flex flex-col space-y-2">
+                    <MathText>{"- Tổng dãy số cách đều: $S_n = \\frac{n \\cdot (u_1 + u_n)}{2}$ trong đó số lượng số hạng $n = \\frac{u_n - u_1}{d} + 1$."}</MathText>
+                    <MathText>{"- Biến đổi Telescoping: $\\frac{1}{n(n+1)} = \\frac{1}{n} - \\frac{1}{n+1}$ và $\\frac{k}{n(n+k)} = \\frac{1}{n} - \\frac{1}{n+k}$."}</MathText>
+                    <MathText>{"- Trị tuyệt đối: $|A| = B \\Rightarrow A = B$ hoặc $A = -B$ (điều kiện $B \\ge 0$)"}</MathText>
+                  </div>
                 </div>
 
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-bold text-indigo-600">2. Hệ Thức Lượng & Hình Học</h4>
-                  <p className="mt-1 font-medium text-slate-600">
-                    {"- Định lý Pytago tam giác vuông: $a^2 = b^2 + c^2$."}
-                    <br />
-                    {"- Đường cao hạ xuống cạnh huyền: $h^2 = b' \\cdot c'$ và $b \\cdot c = a \\cdot h$."}
-                    <br />
-                    {"- Tính chất phân giác trong: $\\frac{BD}{CD} = \\frac{AB}{AC}$."}
-                    <br />
-                    {"- Tỉ số diện tích hai tam giác đồng dạng: $\\frac{S_1}{S_2} = k^2$ (với $k$ là tỉ số đồng dạng)."}
-                  </p>
+                  <div className="mt-1 font-medium text-slate-600 flex flex-col space-y-2">
+                    <MathText>{"- Định lý Pytago tam giác vuông: $a^2 = b^2 + c^2$."}</MathText>
+                    <MathText>{"- Đường cao hạ xuống cạnh huyền: $h^2 = b' \\cdot c'$ và $b \\cdot c = a \\cdot h$."}</MathText>
+                    <MathText>{"- Tính chất phân giác trong: $\\frac{BD}{CD} = \\frac{AB}{AC}$."}</MathText>
+                    <MathText>{"- Tỉ số diện tích hai tam giác đồng dạng: $\\frac{S_1}{S_2} = k^2$ (với $k$ là tỉ số đồng dạng)."}</MathText>
+                  </div>
                 </div>
 
                 <div>
                   <h4 className="font-bold text-indigo-600">3. Vận tốc & Năng suất trung bình</h4>
-                  <p className="mt-1 font-medium text-slate-600">
-                    {"- Vận tốc trung bình khứ hồi (cùng quãng đường S): $v_{tb} = \\frac{2 \\cdot v_1 \\cdot v_2}{v_1 + v_2}$."}
-                    <br />
-                    {"- Thời gian gặp nhau ngược chiều: $t = \\frac{S}{v_1 + v_2}$. Thời gian đuổi kịp cùng chiều: $t = \\frac{S}{v_1 - v_2}$."}
-                  </p>
+                  <div className="mt-1 font-medium text-slate-600 flex flex-col space-y-2">
+                    <MathText>{"- Vận tốc trung bình khứ hồi (cùng quãng đường S): $v_{tb} = \\frac{2 \\cdot v_1 \\cdot v_2}{v_1 + v_2}$."}</MathText>
+                    <MathText>{"- Thời gian gặp nhau ngược chiều: $t = \\frac{S}{v_1 + v_2}$. Thời gian đuổi kịp cùng chiều: $t = \\frac{S}{v_1 - v_2}$."}</MathText>
+                  </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: SETTINGS */}
+        {activeTab === 'settings' && (
+          <div className="max-w-2xl mx-auto space-y-6 animate-fadeIn" id="settings_view_tab">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+              <div className="flex items-center space-x-3 pb-4 border-b border-slate-100">
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl shadow-xs">
+                  <Settings className="w-6 h-6 animate-spin-slow" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 tracking-tight text-sm md:text-base">Cài đặt Trí Tuệ Nhân Tạo (Gemini AI)</h3>
+                  <p className="text-slate-500 text-xs font-semibold mt-0.5">Cấu hình khóa bảo mật để sử dụng dịch vụ AI nâng cao</p>
+                </div>
+              </div>
+
+              {/* API Info Card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-650 leading-relaxed space-y-3 font-medium">
+                <p>
+                  Theo mặc định, hệ thống chạy trên tài nguyên dự phòng chung của máy chủ hoặc tự động chuyển sang <strong className="text-blue-600">Chế độ Sư phạm Ngoại tuyến</strong> siêu tốc khi hết hạn hạn ngạch hoặc kết nối không ổn định.
+                </p>
+                <p>
+                  Để trải nghiệm toàn vẹn các tính năng cao cấp không giới hạn như:
+                </p>
+                <ul className="list-disc pl-5 space-y-1.5 text-slate-700">
+                  <li>Tự động ra câu hỏi ngẫu nhiên hóa liên tục từ Gemini 3.8 Flash.</li>
+                  <li>Phân tích chuyên sâu lý luận sai lầm của từng học viên.</li>
+                  <li>Trò chuyện trực tiếp đa góc nhìn cùng <strong className="text-indigo-600">Cố vấn học tập Giáo sư AI</strong>.</li>
+                </ul>
+                <p>
+                  Bạn hãy cung cấp mã khóa <code className="px-1.5 py-0.5 bg-slate-100 rounded text-rose-600 font-mono">GEMINI_API_KEY</code> cá nhân của mình.
+                </p>
+                <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-xl text-amber-800 text-[11px] flex gap-2">
+                  <span className="text-base">🔒</span>
+                  <div>
+                    <span className="font-bold">Bảo mật tuyệt đối:</span> Khóa API của bạn được lưu hoàn toàn ở bộ nhớ cục bộ trên trình duyệt của riêng bạn (<code className="font-mono bg-amber-100/50 px-1 py-0.5 rounded">localStorage</code>), không bao giờ bị lưu giữ hoặc chia sẻ lên bất kỳ hệ thống lưu trữ bên thứ ba nào.
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Input */}
+              <div className="space-y-4" id="settings_form">
+                <div className="space-y-1.5">
+                  <label className="block text-xs text-slate-600 font-bold uppercase tracking-wider">Khóa GEMINI_API_KEY của bạn:</label>
+                  <input
+                    type="password"
+                    value={geminiApiKey}
+                    onChange={(e) => setGeminiApiKey(e.target.value)}
+                    placeholder="Nhập khóa AI của bạn (Ví dụ: AIzaSy...)"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-250 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 rounded-xl text-xs font-mono text-slate-800 tracking-wider"
+                    id="gemini_key_input"
+                  />
+                  <span className="block text-[10px] text-slate-400 font-semibold">Bạn có thể lấy khóa miễn phí tại trang Google AI Studio.</span>
+                </div>
+
+                <div className="pt-2 flex flex-wrap gap-3" id="settings_actions">
+                  <button
+                    onClick={() => {
+                      localStorage.setItem('asmo_gemini_api_key', geminiApiKey.trim());
+                      alert('Đã lưu cấu hình khóa API của bạn thành công! 🎉');
+                      window.location.reload();
+                    }}
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shadow-blue-500/10"
+                    id="save_settings_btn"
+                  >
+                    Lưu cấu hình
+                  </button>
+                  <button
+                    onClick={() => {
+                      setGeminiApiKey('');
+                      localStorage.removeItem('asmo_gemini_api_key');
+                      alert('Đã gỡ bỏ khóa API. Hệ thống sẽ quay lại sử dụng Chế độ Hệ thống mặc định. 🔐');
+                      window.location.reload();
+                    }}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-250"
+                    id="clear_settings_btn"
+                  >
+                    Xóa khóa cấu hình
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="pt-4 border-t border-slate-150 flex items-center justify-between" id="connection_status_panel">
+                <span className="text-xs text-slate-500 font-bold">Trạng thái cấu hình hiện tại:</span>
+                <span className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 ${
+                  localStorage.getItem('asmo_gemini_api_key')
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${localStorage.getItem('asmo_gemini_api_key') ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'}`}></span>
+                  {localStorage.getItem('asmo_gemini_api_key')
+                    ? 'Đã kích hoạt Chế độ AI Cá nhân (Premium ✨)'
+                    : 'Đang dùng Chế độ AI Hệ thống / Ngoại tuyến'}
+                </span>
               </div>
             </div>
           </div>
