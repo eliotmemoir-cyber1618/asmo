@@ -244,7 +244,7 @@ export default function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Gemini-API-Key': localStorage.getItem('asmo_gemini_api_key') || ''
+          'X-Gemini-API-Key': (localStorage.getItem('asmo_gemini_api_key') || '').replace(/["'\s\r\n]/g, '').trim()
         },
         body: JSON.stringify({
           categoryId: category.id,
@@ -437,16 +437,25 @@ export default function App() {
     setShowCustomChat(false);
 
     try {
+      const cleanKey = (localStorage.getItem('asmo_gemini_api_key') || '').replace(/["'\s\r\n]/g, '').trim();
       const response = await fetch('/api/gemini/solve-custom', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Gemini-API-Key': localStorage.getItem('asmo_gemini_api_key') || ''
+          'X-Gemini-API-Key': cleanKey
         },
         body: JSON.stringify({ customQuestion: customSolverInput })
       });
 
-      const data = await response.json();
+      let data: any = null;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const textResponse = await response.text();
+        throw new Error(textResponse.substring(0, 150) || 'Phản hồi từ máy chủ không hợp lệ (Không phải định dạng JSON)');
+      }
+
       if (response.ok && data.solution) {
         setCustomSolverResult(data.solution);
         setCustomSolverChatContext(customSolverInput);
@@ -466,7 +475,15 @@ Hãy kiểm tra lại xem API Key của bạn đã chính xác chưa (trong mụ
       }
     } catch (e: any) {
       console.error(e);
-      setCustomSolverResult(`Đã xảy ra lỗi khi truyền tín hiệu tới AI. Vui lòng kiểm tra lại kết nối internet. Chi tiết lỗi: ${e.message || String(e)}`);
+      setCustomSolverResult(`### Không thể kết nối với trí tuệ nhân tạo Gemini
+
+Đã xảy ra lỗi khi truyền tín hiệu tới AI hoặc máy chủ đang khởi động lại. Vui lòng thử lại sau ít giây.
+
+**Chi tiết lỗi:**
+\`${e.message || String(e)}\`
+
+**Gợi ý:**
+- Hãy kiểm tra xem mã khóa API cá nhân trong tab **Cài đặt AI** có chính xác không (bảo đảm không chứa các ký tự nháy kép \`"\` hay nháy đơn \`'\` bọc quanh).`);
     } finally {
       setCustomSolverLoading(false);
     }
@@ -2025,7 +2042,8 @@ Hãy kiểm tra lại xem API Key của bạn đã chính xác chưa (trong mụ
                 <div className="pt-2 flex flex-wrap gap-3" id="settings_actions">
                   <button
                     onClick={() => {
-                      localStorage.setItem('asmo_gemini_api_key', geminiApiKey.trim());
+                      const cleanKey = geminiApiKey.replace(/["'\s\r\n]/g, '').trim();
+                      localStorage.setItem('asmo_gemini_api_key', cleanKey);
                       alert('Đã lưu cấu hình khóa API của bạn thành công! 🎉');
                       window.location.reload();
                     }}

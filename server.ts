@@ -44,18 +44,21 @@ function getAiClient(req: express.Request): GoogleGenAI | null {
   const headerKey = req.headers['x-gemini-api-key'] || req.headers['X-Gemini-API-Key'];
   const userKey = Array.isArray(headerKey) ? headerKey[0] : headerKey;
   
-  if (userKey && userKey.trim() !== '') {
-    try {
-      return new GoogleGenAI({
-        apiKey: userKey.trim(),
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
+  if (userKey) {
+    const cleanKey = userKey.replace(/["'\s\r\n]/g, '').trim();
+    if (cleanKey !== '') {
+      try {
+        return new GoogleGenAI({
+          apiKey: cleanKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
           }
-        }
-      });
-    } catch (err) {
-      console.error('Failed to initialize user-provided GoogleGenAI client:', err);
+        });
+      } catch (err) {
+        console.error('Failed to initialize user-provided GoogleGenAI client:', err);
+      }
     }
   }
   return ai;

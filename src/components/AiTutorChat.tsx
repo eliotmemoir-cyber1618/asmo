@@ -200,7 +200,7 @@ Hướng dẫn giải thích chi tiết có sẵn: "${explanation}"`;
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Gemini-API-Key': localStorage.getItem('asmo_gemini_api_key') || ''
+          'X-Gemini-API-Key': (localStorage.getItem('asmo_gemini_api_key') || '').replace(/["'\s\r\n]/g, '').trim()
         },
         body: JSON.stringify({
           history: historyPayload,
