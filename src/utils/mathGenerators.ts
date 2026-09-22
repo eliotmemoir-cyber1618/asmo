@@ -231,7 +231,7 @@ class SeedRandom {
 /**
  * Generates a dynamic math question based on the category and a seed.
  */
-export function generateQuestion(categoryId: string, seed: number = Math.floor(Math.random() * 100000)): Question {
+export function generateQuestion(categoryId: string, seed: number = Math.floor(Math.random() * 100000), forceType?: 'multiple_choice' | 'short_answer'): Question {
   const rand = new SeedRandom(seed);
   const category = CATEGORIES.find(c => c.id === categoryId) || CATEGORIES[0];
   
@@ -252,6 +252,10 @@ export function generateQuestion(categoryId: string, seed: number = Math.floor(M
     difficulty = 'Nhóm 3';
     points = 6;
     type = 'short_answer'; // Heavy synthesis is usually short answer in ASMO
+  }
+
+  if (forceType) {
+    type = forceType;
   }
 
   let questionText = '';
@@ -888,6 +892,47 @@ export function generateAsmoTest(seed: number = Math.floor(Math.random() * 10000
       q.points = 6;
       q.type = 'short_answer'; // Section C synthesis is often numerical fill-in
     }
+
+    testQuestions.push(q);
+  }
+
+  return testQuestions;
+}
+
+/**
+ * Generates a multiple-choice-only ASMO test (20 questions, all multiple_choice, 5 points each).
+ */
+export function generateAsmoMultipleChoiceTest(seed: number = Math.floor(Math.random() * 100000)): Question[] {
+  const rand = new SeedRandom(seed);
+  const testQuestions: Question[] = [];
+
+  // Shuffle categories to get a random spread of 20 questions across the 18 categories
+  const categoryPool = [...CATEGORIES];
+  const selectedCategories: MathCategory[] = [];
+
+  for (let i = 0; i < 20; i++) {
+    const cat = categoryPool[i % categoryPool.length];
+    selectedCategories.push(cat);
+  }
+
+  for (let i = 0; i < 20; i++) {
+    const cat = selectedCategories[i];
+    const qSeed = seed + i * 2026;
+    const q = generateQuestion(cat.id, qSeed, 'multiple_choice');
+
+    // For pure multiple choice exam:
+    // - 8 Easy questions (Nhóm 1)
+    // - 8 Medium questions (Nhóm 2)
+    // - 4 Hard questions (Nhóm 3)
+    // Each question is worth exactly 5 points, total 100 points
+    if (i < 8) {
+      q.difficulty = 'Nhóm 1';
+    } else if (i < 16) {
+      q.difficulty = 'Nhóm 2';
+    } else {
+      q.difficulty = 'Nhóm 3';
+    }
+    q.points = 5;
 
     testQuestions.push(q);
   }

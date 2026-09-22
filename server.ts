@@ -70,6 +70,80 @@ function cleanResponseText(text: string | undefined | null): string {
   return text.replace(/\*\*/g, '');
 }
 
+// Generate content with model fallback sequence (from gemini-3.5-flash downwards based on key plan)
+async function generateWithModelFallback(
+  reqAi: GoogleGenAI,
+  params: {
+    contents: any;
+    config?: any;
+  }
+) {
+  const modelsToTry = [
+    'gemini-3.5-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+    'gemini-3.1-flash-lite'
+  ];
+
+  let lastError: any = null;
+  for (const modelName of modelsToTry) {
+    try {
+      console.log(`[AI Request] Attempting with model: ${modelName}`);
+      const response = await reqAi.models.generateContent({
+        model: modelName,
+        contents: params.contents,
+        config: params.config
+      });
+      console.log(`[AI Request] Succeeded with model: ${modelName}`);
+      return response;
+    } catch (err: any) {
+      console.warn(`[AI Request] Model ${modelName} failed. Error:`, err.message || err);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('All models in fallback sequence failed.');
+}
+
+// Chat creation with model fallback sequence
+async function chatWithModelFallback(
+  reqAi: GoogleGenAI,
+  params: {
+    history: any[];
+    message: string;
+    systemInstruction: string;
+  }
+) {
+  const modelsToTry = [
+    'gemini-3.5-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+    'gemini-3.1-flash-lite'
+  ];
+
+  let lastError: any = null;
+  for (const modelName of modelsToTry) {
+    try {
+      console.log(`[Chat Request] Attempting with model: ${modelName}`);
+      const chat = reqAi.chats.create({
+        model: modelName,
+        history: params.history,
+        config: {
+          systemInstruction: params.systemInstruction
+        }
+      });
+      const response = await chat.sendMessage({
+        message: params.message
+      });
+      console.log(`[Chat Request] Succeeded with model: ${modelName}`);
+      return response;
+    } catch (err: any) {
+      console.warn(`[Chat Request] Model ${modelName} failed. Error:`, err.message || err);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('All models in chat fallback sequence failed.');
+}
+
 // ==========================================
 // API ROUTES
 // ==========================================
@@ -138,8 +212,7 @@ Yêu cầu định dạng đầu ra là JSON có các trường:
   "commonMistakes": "Lỗi học sinh lớp 8 hay mắc phải khi giải dạng toán này và cách phòng tránh."
 }`;
 
-    const response = await reqAi.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
+    const response = await generateWithModelFallback(reqAi, {
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -235,8 +308,7 @@ Hãy viết một phản hồi giảng giải nâng cao bằng Tiếng Việt g�
 3. **Chiến thuật giải nhanh (Speed Tip / Trick)**: Một mẹo nhẩm nhanh hoặc phương pháp loại trừ đặc biệt hiệu quả trong phòng thi ASMO để tiết kiệm thời gian (vì đề ASMO 25 câu làm trong 120 phút).
 4. **Trình bày trực quan**: Chia nhỏ lời giải thành các bước cực kỳ dễ thương, dễ hiểu, dùng LaTeX ($...$) chuyên nghiệp.`;
 
-    const response = await reqAi.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
+    const response = await generateWithModelFallback(reqAi, {
       contents: prompt,
       config: {
         systemInstruction: 'Bạn là chuyên gia đào tạo học sinh xuất sắc ôn thi Olympic Toán Quốc tế ASMO.'
@@ -398,16 +470,10 @@ Bạn đang hướng dẫn học sinh thảo luận về bài toán sau:
 Hãy trả lời câu hỏi mới của học sinh một cách dễ hiểu, chia nhỏ các bước, giải thích tận gốc rễ toán học. Luôn dùng ký hiệu toán học LaTeX kẹp trong $...$.
 Hãy khích lệ học sinh tự suy nghĩ thêm thay vì chỉ đưa ra đáp án ăn sẵn ngay lập tức, đưa ra các câu hỏi gợi mở lý thú.`;
 
-    const chat = reqAi.chats.create({
-      model: 'gemini-3.1-flash-lite',
+    const response = await chatWithModelFallback(reqAi, {
       history: formattedHistory,
-      config: {
-        systemInstruction
-      }
-    });
-
-    const response = await chat.sendMessage({
-      message: message
+      message: message,
+      systemInstruction: systemInstruction
     });
 
     return res.json({ reply: cleanResponseText(response.text) });
@@ -444,8 +510,7 @@ Hãy đóng vai là thầy giáo dạy Toán ôn thi ASMO:
 4. Nêu các bẫy/sai lầm học sinh dễ mắc phải ở bài này.
 5. Gợi ý thêm 1 bài toán tương tự cùng dạng số liệu khác để học sinh tự luyện tập.`;
 
-    const response = await reqAi.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
+    const response = await generateWithModelFallback(reqAi, {
       contents: prompt,
       config: {
         systemInstruction: 'Bạn là chuyên gia giải toán Olympic và cố vấn học tập Toán lớp 8.'

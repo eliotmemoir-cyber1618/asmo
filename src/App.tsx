@@ -35,7 +35,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { MathText } from './components/MathText.tsx';
 import { AiTutorChat } from './components/AiTutorChat.tsx';
-import { CATEGORIES, MathCategory, Question, generateQuestion, generateAsmoTest } from './utils/mathGenerators.ts';
+import { CATEGORIES, MathCategory, Question, generateQuestion, generateAsmoTest, generateAsmoMultipleChoiceTest } from './utils/mathGenerators.ts';
 
 // Achievement Badges definition
 interface Badge {
@@ -89,7 +89,7 @@ export default function App() {
   const [practiceHistory, setPracticeHistory] = useState<{ [catId: string]: { correct: number; total: number } }>({});
 
   // EXAM MODULE STATES
-  const [examType, setExamType] = useState<'full' | 'mini'>('full');
+  const [examType, setExamType] = useState<'full' | 'mini' | 'mc'>('full');
   const [examState, setExamState] = useState<'landing' | 'running' | 'submitted'>('landing');
   const [examQuestions, setExamQuestions] = useState<Question[]>([]);
   const [examAnswers, setExamAnswers] = useState<{ [qId: string]: string }>({});
@@ -337,7 +337,7 @@ export default function App() {
   };
 
   // 4. MOCK EXAM SYSTEM
-  const handleStartExam = (type: 'full' | 'mini') => {
+  const handleStartExam = (type: 'full' | 'mini' | 'mc') => {
     setExamType(type);
     setExamState('running');
     setCurrentExamQuestionIndex(0);
@@ -348,9 +348,9 @@ export default function App() {
     setShowAiTutorExam(false);
 
     const testSeed = Math.floor(Math.random() * 100000);
-    const questions = generateAsmoTest(testSeed);
 
     if (type === 'mini') {
+      const questions = generateAsmoTest(testSeed);
       // 5 questions: 2 Basic (Nhóm 1), 2 Apply (Nhóm 2), 1 Synth (Nhóm 3)
       const subset = [
         questions[0], // Nhóm 1
@@ -361,7 +361,12 @@ export default function App() {
       ];
       setExamQuestions(subset);
       setExamTimeLeft(25 * 60); // 25 minutes for mini
+    } else if (type === 'mc') {
+      const mcQuestions = generateAsmoMultipleChoiceTest(testSeed);
+      setExamQuestions(mcQuestions);
+      setExamTimeLeft(60 * 60); // 60 minutes for multiple choice
     } else {
+      const questions = generateAsmoTest(testSeed);
       setExamQuestions(questions);
       setExamTimeLeft(120 * 60); // 120 minutes for full
     }
@@ -401,7 +406,7 @@ export default function App() {
     });
 
     setExamScore(score);
-    const totalTimeAllocated = examType === 'mini' ? 25 * 60 : 120 * 60;
+    const totalTimeAllocated = examType === 'mini' ? 25 * 60 : examType === 'mc' ? 60 * 60 : 120 * 60;
     setExamTimeTaken(totalTimeAllocated - examTimeLeft);
 
     // Update global user statistics
@@ -409,7 +414,7 @@ export default function App() {
       const addedPoints = score;
       let newBadgesUnlocked = [...badges];
 
-      if (examType === 'full' && score >= 60) {
+      if ((examType === 'full' || examType === 'mc') && score >= 60) {
         // Unlock badge 5
         setBadges(badgesState =>
           badgesState.map(b => (b.id === '5' ? { ...b, unlocked: true } : b))
@@ -475,7 +480,21 @@ Hãy kiểm tra lại xem API Key của bạn đã chính xác chưa (trong mụ
       }
     } catch (e: any) {
       console.error(e);
-      setCustomSolverResult(`### Không thể kết nối với trí tuệ nhân tạo Gemini
+      const isGatewayError = 
+        e.message?.includes('NOT_FOUND') || 
+        e.message?.includes('The page could not be found') || 
+        e.message?.includes('hkg1');
+
+      if (isGatewayError) {
+        setCustomSolverResult(`### Máy chủ đang hoàn tất cập nhật cấu hình hoặc khởi động lại 🚀
+
+Hệ thống đang tải lại các mô hình AI thông minh (mô hình 3.5 và các fallback) tối ưu nhất theo kế hoạch của mã khóa của bạn. Quá trình này tự động hoàn tất chỉ trong 3-5 giây!
+
+**Hướng dẫn:**
+- Xin vui lòng chờ khoảng 3-5 giây để máy chủ khởi động hoàn tất, sau đó bấm lại nút **"Gửi yêu cầu giải bài"** một lần nữa để nhận kết quả giải toán chi tiết ngay lập tức.
+- Hiện tượng này chỉ diễn ra tạm thời khi mã nguồn hệ thống được cập nhật.`);
+      } else {
+        setCustomSolverResult(`### Không thể kết nối với trí tuệ nhân tạo Gemini
 
 Đã xảy ra lỗi khi truyền tín hiệu tới AI hoặc máy chủ đang khởi động lại. Vui lòng thử lại sau ít giây.
 
@@ -484,6 +503,7 @@ Hãy kiểm tra lại xem API Key của bạn đã chính xác chưa (trong mụ
 
 **Gợi ý:**
 - Hãy kiểm tra xem mã khóa API cá nhân trong tab **Cài đặt AI** có chính xác không (bảo đảm không chứa các ký tự nháy kép \`"\` hay nháy đơn \`'\` bọc quanh).`);
+      }
     } finally {
       setCustomSolverLoading(false);
     }
@@ -1369,10 +1389,10 @@ Hãy kiểm tra lại xem API Key của bạn đã chính xác chưa (trong mụ
                       </div>
                     </div>
                     <ul className="text-[11px] text-slate-600 space-y-2 list-disc pl-5 leading-relaxed font-medium">
-                      <li>Tổng số câu hỏi: <strong className="text-slate-800">25 câu</strong> · Tổng quỹ điểm: <strong className="text-slate-800">100 điểm</strong>.</li>
-                      <li>Thời gian làm bài quy định: <strong className="text-slate-800">120 phút</strong>.</li>
-                      <li>Hình thức thi ASMO: Điền số hoặc trọn lựa phương án. Hệ thống <strong className="text-emerald-600">không trừ điểm</strong> khi trả lời sai.</li>
-                      <li>Nên ưu tiên giải quyết nhanh các câu thuộc nhóm dễ trước.</li>
+                      <li><strong className="text-slate-800">Đề Thi thử Full (25 câu)</strong>: Trọn bộ 100 điểm, thời gian 120 phút (gồm cả trắc nghiệm và điền số).</li>
+                      <li><strong className="text-slate-800">Đề Thi Trắc Nghiệm (20 câu)</strong>: 100% trắc nghiệm khách quan chọn 1 trong 4 phương án, 5 điểm/câu, tổng điểm 100, thời gian 60 phút.</li>
+                      <li><strong className="text-slate-800">Đề Mini Quiz (5 câu)</strong>: Phù hợp khởi động ôn tập nhanh trong 25 phút.</li>
+                      <li>Hình thức tính điểm: Hệ thống <strong className="text-emerald-600">không trừ điểm</strong> khi trả lời sai.</li>
                     </ul>
                   </div>
 
@@ -1383,14 +1403,21 @@ Hãy kiểm tra lại xem API Key của bạn đã chính xác chưa (trong mụ
                       className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-blue-500/10 flex items-center justify-center gap-1.5"
                       id="start_full_exam_btn"
                     >
-                      <Sparkles className="w-4 h-4 text-amber-300" /> Bắt đầu Thi thử Full (120 phút)
+                      <Sparkles className="w-4 h-4 text-amber-300" /> Thi thử Full (120 phút)
+                    </button>
+                    <button
+                      onClick={() => handleStartExam('mc')}
+                      className="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-indigo-500/10 flex items-center justify-center gap-1.5"
+                      id="start_mc_exam_btn"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-yellow-300" /> Thi Trắc Nghiệm (60 phút)
                     </button>
                     <button
                       onClick={() => handleStartExam('mini')}
                       className="w-full sm:w-auto px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-300 flex items-center justify-center gap-1.5"
                       id="start_mini_exam_btn"
                     >
-                      <ListTodo className="w-4 h-4 text-slate-500" /> Làm bài Mini Quiz (5 câu - 25 phút)
+                      <ListTodo className="w-4 h-4 text-slate-500" /> Mini Quiz (25 phút)
                     </button>
                   </div>
                 </div>
@@ -1656,7 +1683,7 @@ Hãy kiểm tra lại xem API Key của bạn đã chính xác chưa (trong mụ
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
                       <span className="text-slate-450 block text-[10px] uppercase tracking-wider">Dạng bài thi</span>
                       <span className="text-sm font-bold text-slate-850 block mt-1">
-                        {examType === 'full' ? 'Trọn Bộ (25 câu)' : 'Mini (5 câu)'}
+                        {examType === 'full' ? 'Trọn Bộ (25 câu)' : examType === 'mc' ? 'Trắc Nghiệm (20 câu)' : 'Mini (5 câu)'}
                       </span>
                     </div>
                   </div>
